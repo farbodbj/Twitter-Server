@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/Twitter_Server.iml" filepath="$PROJECT_DIR$/Twitter_Server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../Twitter_Android_Client/common/common.iml" filepath="$PROJECT_DIR$/../Twitter_Android_Client/common/common.iml" />
+    </modules>
+  </component>
+</project>

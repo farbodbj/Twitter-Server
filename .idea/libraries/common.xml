@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="common">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../Twitter_Android_Client/common/build/libs/common.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
