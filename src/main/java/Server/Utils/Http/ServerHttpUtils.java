@@ -51,22 +51,22 @@ public class ServerHttpUtils {
             badRequest(exchange);
         }
         return body;
+
+    }
+
+    public static <T> T validateSerializedBody(HttpExchange exchange, Class<T> cls) {
+        T body = parseSerialized(exchange, cls);
+        if(body == null) {
+            badRequest(exchange);
+        }
+        return body;
     }
 
     public static Object getValueFromHeader(HttpExchange exchange, String key) {
         return exchange.getRequestHeaders().get(key);
     }
 
-    public static <T> T validateSerializedBody(HttpExchange exchange, Class<T> cls) {
-        try (InputStream inputStream = exchange.getRequestBody()) {
-            byte[] requestBody = inputStream.readAllBytes();
-            return SerializationUtils.deserialize(requestBody);
-        } catch(IOException e) {
-            System.out.println(ResponseMessage.PARSE_ERROR);
-            badRequest(exchange);
-            return null;
-        }
-    }
+
 
 
     public static <T> T parse(HttpExchange exchange, Class<T> cls) {
@@ -75,6 +75,17 @@ public class ServerHttpUtils {
             inputStreamReader,
             cls);
         } catch (IOException e) {
+            System.out.println(ResponseMessage.PARSE_ERROR);
+            return null;
+        }
+    }
+
+
+    private static <T> T parseSerialized(HttpExchange exchange, Class<T> cls) {
+        try (InputStream inputStream = exchange.getRequestBody()) {
+            byte[] requestBody = inputStream.readAllBytes();
+            return SerializationUtils.deserialize(requestBody);
+        } catch(IOException e) {
             System.out.println(ResponseMessage.PARSE_ERROR);
             return null;
         }
@@ -103,8 +114,7 @@ public class ServerHttpUtils {
             int code,
             boolean success
     ) {
-        OutputStream os = exchange.getResponseBody();
-        safe(() -> {
+        try (OutputStream os = exchange.getResponseBody()) {
             String response = gson.toJson(
                     new ResponseModel<>(code, success, message, res)
             );
@@ -112,8 +122,29 @@ public class ServerHttpUtils {
             exchange.sendResponseHeaders(code, response.getBytes().length);
 
             os.write(response.getBytes());
-            os.close();
-        });
+        } catch (IOException e) {
+            System.out.println("failed to send response");
+        }
+
+    }
+
+
+    public static <T extends Serializable> void serializableResponse(
+            HttpExchange exchange,
+            String message,
+            T res,
+            int code,
+            boolean success
+    ) {
+        try (OutputStream os = exchange.getResponseBody()) {
+            ResponseModel<T> response = new ResponseModel<>(code, success, message, res);
+            byte[] responseBytes = SerializationUtils.serialize((Serializable) response);
+            exchange.sendResponseHeaders(code, responseBytes.length);
+
+            os.write(responseBytes);
+        } catch (IOException e) {
+            System.out.println("failed to send response");
+        }
     }
 
     public static Map<String, String> queryToMap(String query) {

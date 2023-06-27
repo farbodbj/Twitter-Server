@@ -120,7 +120,12 @@ public class ServerRequestHandler {
                 } else {
                     //sends Jwt back to the client inside the user object
                     user.setJwt(JwtUtils.refreshTokenGenerator(user.getUserId()));
-                    sendSuccessResponse(exchange, "sign in successful", user);
+                    serializableResponse(
+                            exchange,
+                    "sign in successful",
+                            user,
+                            SUCCESS,
+                    true);
                 }
             }
         }
@@ -404,7 +409,12 @@ public class ServerRequestHandler {
             }
             if(JwtCheck(exchange, userId)) {
                 Timeline timeline = dataController.getTimeline(userId, max);
-                sendSuccessResponse(exchange, "get timeline success", timeline);
+                serializableResponse(
+                        exchange,
+                "get timeline success",
+                        timeline,
+                        SUCCESS,
+                true);
             }
         }
     }
