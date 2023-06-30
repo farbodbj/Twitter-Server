@@ -23,6 +23,7 @@ import com.twitter.common.Models.Messages.Textuals.Tweet;
 import com.twitter.common.Models.User;
 
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
@@ -64,9 +65,14 @@ public class ServerRequestHandler {
                 httpServer.createContext(
                     annotation.endpoint(),
                     exchange ->
-                        safe(()->
-                                method.invoke(this, exchange)
-                        )
+                    {
+                        try {
+                            method.invoke(this, exchange);
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
                 );
             }
         }
@@ -111,21 +117,19 @@ public class ServerRequestHandler {
         // of credentials all user data will be sent back to the client
         if(validateMethod("GET", exchange)) {
             Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
-            if(!validateEssentialKeys(query, Users.COL_USERNAME, Users.COL_PASSWORD_HASH)) {
-                badRequest(exchange);
-            } else {
+            if(validateEssentialKeys(exchange, query, Users.COL_USERNAME, Users.COL_PASSWORD_HASH)) {
                 User user = requestActionHandler.signIn(query.get(Users.COL_USERNAME), query.get(Users.COL_PASSWORD_HASH));
-                if(user == null) {
+                if (user == null) {
                     sendErrorResponse(exchange, "username or password incorrect", UNAUTHORIZED);
                 } else {
                     //sends Jwt back to the client inside the user object
                     user.setJwt(JwtUtils.refreshTokenGenerator(user.getUserId()));
                     serializableResponse(
                             exchange,
-                    "sign in successful",
+                            "sign in successful",
                             user,
                             SUCCESS,
-                    true);
+                            true);
                 }
             }
         }
@@ -135,24 +139,21 @@ public class ServerRequestHandler {
     private static void follow(HttpExchange exchange) {
         if(validateMethod("POST", exchange)) {
             Map<String, String> body = ServerHttpUtils.validateBody(exchange, HashMap.class);
-            int followerId = Integer.parseInt(body.get(Followers.COL_FOLLOWER));
-            int followedId = Integer.parseInt(body.get(Followers.COL_FOLLOWED));
 
-            if(!validateEssentialKeys(body, Followers.COL_FOLLOWED, Followers.COL_FOLLOWER, JwtUtils.name)) {
-                badRequest(exchange);
-            }
-            else if (JwtCheck(exchange, followerId)){
-                if(followedId == followerId) {
-                    sendErrorResponse(exchange, "following user failed", NOT_ALLOWED);
+            if(validateEssentialKeys(exchange, body, Followers.COL_FOLLOWED, Followers.COL_FOLLOWER)) {
+                int followerId = Integer.parseInt(body.get(Followers.COL_FOLLOWER));
+                int followedId = Integer.parseInt(body.get(Followers.COL_FOLLOWED));
 
-                } else if (!JwtCheck(exchange, followerId)) {
-                    sendErrorResponse(exchange, "you do not have this permission", UNAUTHORIZED);
+                if (JwtCheck(exchange, followerId)) {
+                    if (followedId == followerId) {
+                        sendErrorResponse(exchange, "following user failed", NOT_ALLOWED);
 
-                } else if(requestActionHandler.follow(followerId, followedId)){
-                    sendSuccessResponse(exchange, "user followed successfully", null);
+                    } else if (requestActionHandler.follow(followerId, followedId)) {
+                        sendSuccessResponse(exchange, "user followed successfully", null);
 
-                } else {
-                    internalServerError(exchange);
+                    } else {
+                        sendErrorResponse(exchange, "you are already following this user", DUPLICATE_RECORD);
+                    }
                 }
             }
         }
@@ -162,30 +163,25 @@ public class ServerRequestHandler {
     private static void unfollow(HttpExchange exchange) {
         if(validateMethod("POST", exchange)) {
             Map<String, String> query = ServerHttpUtils.validateBody(exchange, HashMap.class);
-            int followerId = Integer.parseInt(query.get(Followers.COL_FOLLOWER));
-            int followedId = Integer.parseInt(query.get(Followers.COL_FOLLOWED));
 
-            if(!validateEssentialKeys(query, Followers.COL_FOLLOWED, Followers.COL_FOLLOWER, JwtUtils.name)) {
-                badRequest(exchange);
-            }
-            else if (JwtCheck(exchange, followerId)){
-                safe(()->{
-                    if(followedId == followerId) {
+            if(validateEssentialKeys(exchange, query, Followers.COL_FOLLOWED, Followers.COL_FOLLOWER)) {
+                int followerId = Integer.parseInt(query.get(Followers.COL_FOLLOWER));
+                int followedId = Integer.parseInt(query.get(Followers.COL_FOLLOWED));
+
+                if (JwtCheck(exchange, followerId)) {
+                    if (followedId == followerId) {
                         sendErrorResponse(exchange, "you can't follow or unfollow yourself", NOT_ALLOWED);
 
-                    } else if (!JwtCheck(exchange, followerId)) {
-                        sendErrorResponse(exchange, "you do not have this permission", UNAUTHORIZED);
-
-                    } else if(requestActionHandler.unfollow(followerId, followedId)) {
+                    } else if (requestActionHandler.unfollow(followerId, followedId)) {
                         sendSuccessResponse(exchange, "user unfollowed successfully", null);
+
+                    } else {
+                        sendErrorResponse(exchange, "you do not follow this user", NOT_FOUND);
                     }
-                    else {
-                        sendErrorResponse(exchange, "you do not follow this user", NOT_ALLOWED);
-                    }
-                });
-            }
+                }
             }
         }
+    }
 
     @APIEndpoint(endpoint = API.TWEET)
     private static void tweet(HttpExchange exchange) {
@@ -199,7 +195,7 @@ public class ServerRequestHandler {
                     sendSuccessResponse(
                             exchange,
                     "Tweet successfully sent.",
-                            SUCCESS);
+                            null);
                 }
                 else {
                     internalServerError(exchange);
@@ -238,7 +234,7 @@ public class ServerRequestHandler {
                     sendSuccessResponse(
                             exchange,
                     "retweeted successfully",
-                            SUCCESS);
+                            null);
                 } else {
                     internalServerError(exchange);
                 }
@@ -263,42 +259,42 @@ public class ServerRequestHandler {
     }
 
     @APIEndpoint(endpoint = API.LIKE)
+    @SuppressWarnings("unchecked")
     private static void like(HttpExchange exchange) {
         if(validateMethod("POST", exchange)) {
-            Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
-            int likerId = Integer.parseInt(query.get(Users.COL_USERID));
-            int tweetId = Integer.parseInt(query.get(Tweets.COL_TWEET_ID));
+            Map<String, String> query = validateBody(exchange, Map.class);
 
-            if(!validateEssentialKeys(query, Users.COL_USERID, Tweets.COL_TWEET_ID,  JwtUtils.name)) {
-                badRequest(exchange);
-            }
-            else if (!JwtCheck(exchange, likerId)) {
-                if (requestActionHandler.like(likerId, tweetId)) {
-                    sendSuccessResponse(exchange, "liked successfully", null);
-                }
-                else {
-                    internalServerError(exchange);
+            if(validateEssentialKeys(exchange, query, Users.COL_USERID, Tweets.COL_TWEET_ID)) {
+                int likerId = Integer.parseInt(query.get(Users.COL_USERID));
+                long tweetId = Long.parseLong(query.get(Tweets.COL_TWEET_ID));
+
+                if (JwtCheck(exchange, likerId)) {
+                    if (requestActionHandler.like(likerId, tweetId)) {
+                        sendSuccessResponse(exchange, "liked successfully", null);
+                    } else {
+                        internalServerError(exchange);
+                    }
                 }
             }
         }
     }
 
     @APIEndpoint(endpoint = API.UNLIKE)
+    @SuppressWarnings("unchecked")
     private static void unlike(HttpExchange exchange) {
-        if(validateMethod("POST", exchange))
-        {
-            Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
-            int unLikerId = Integer.parseInt(query.get(Users.COL_USERID));
-            int tweetId = Integer.parseInt(query.get(Tweets.COL_TWEET_ID));
+        if(validateMethod("POST", exchange)) {
+            Map<String, String> query = validateBody(exchange, Map.class);
 
-            if(!validateEssentialKeys(query, Users.COL_USERID, Tweets.COL_TWEET_ID,  JwtUtils.name)) {
-                badRequest(exchange);
-            }
-            else if (JwtCheck(exchange, unLikerId)) {
-                if (requestActionHandler.unlike(unLikerId, tweetId)) {
-                    sendSuccessResponse(exchange, "unliked successfully", null);
-                } else {
-                    internalServerError(exchange);
+            if(validateEssentialKeys(exchange, query, Users.COL_USERID, Tweets.COL_TWEET_ID)) {
+                int unLikerId = Integer.parseInt(query.get(Users.COL_USERID));
+                long tweetId = Long.parseLong(query.get(Tweets.COL_TWEET_ID));
+
+                if (JwtCheck(exchange, unLikerId)) {
+                    if (requestActionHandler.unlike(unLikerId, tweetId)) {
+                        sendSuccessResponse(exchange, "unliked successfully", null);
+                    } else {
+                        internalServerError(exchange);
+                    }
                 }
             }
         }
@@ -309,24 +305,23 @@ public class ServerRequestHandler {
     private static void block(HttpExchange exchange) {
         if(validateMethod("POST", exchange)) {
             Map<String, String> params = validateBody(exchange, HashMap.class);
-            int blockerId = Integer.parseInt(params.get(BlockList.COL_BLOCKER));
-            int blockedId = Integer.parseInt(params.get(BlockList.COL_BLOCKED));
 
-            if(!validateEssentialKeys(params, BlockList.COL_BLOCKED, BlockList.COL_BLOCKED)) {
-                badRequest(exchange);
-            }
-            else if (JwtCheck(exchange, blockerId)) {
-                safe(()->{
-                    if(blockedId == blockerId) {
+            if(validateEssentialKeys(exchange, params, BlockList.COL_BLOCKED, BlockList.COL_BLOCKED)) {
+                int blockerId = Integer.parseInt(params.get(BlockList.COL_BLOCKER));
+                int blockedId = Integer.parseInt(params.get(BlockList.COL_BLOCKED));
+
+                if (JwtCheck(exchange, blockerId)) {
+                    if (blockedId == blockerId) {
                         sendErrorResponse(exchange, "you can't block/unblock yourself", NOT_ALLOWED);
 
-                    } else if(requestActionHandler.block(blockerId, blockedId)){
+                    } else if (requestActionHandler.block(blockerId, blockedId)) {
                         sendSuccessResponse(exchange, "user successfully blocked", null);
 
                     } else {
-                        internalServerError(exchange);
+                        sendErrorResponse(exchange, "you have already blocked this user", DUPLICATE_RECORD);
                     }
-                });
+
+                }
             }
         }
     }
@@ -336,24 +331,23 @@ public class ServerRequestHandler {
     private static void unblock(HttpExchange exchange) {
         if(validateMethod("POST", exchange)) {
             Map<String, String> query = validateBody(exchange, HashMap.class);
-            int blockerId = Integer.parseInt(query.get(BlockList.COL_BLOCKER));
-            int blockedId = Integer.parseInt(query.get(BlockList.COL_BLOCKED));
 
-            if(!validateEssentialKeys(query, BlockList.COL_BLOCKED, BlockList.COL_BLOCKED)) {
-                badRequest(exchange);
-            }
-            else if (JwtCheck(exchange, blockerId)){
-                safe(()->{
-                    if(blockedId == blockerId) {
+            if(validateEssentialKeys(exchange, query, BlockList.COL_BLOCKED, BlockList.COL_BLOCKED)) {
+                int blockerId = Integer.parseInt(query.get(BlockList.COL_BLOCKER));
+                int blockedId = Integer.parseInt(query.get(BlockList.COL_BLOCKED));
+
+                if (JwtCheck(exchange, blockerId)) {
+                    if (blockedId == blockerId) {
                         sendErrorResponse(exchange, "you can't block/unblock yourself", NOT_ALLOWED);
 
-                    } else if(requestActionHandler.unblock(blockerId, blockedId)){
+                    } else if (requestActionHandler.unblock(blockerId, blockedId)) {
                         sendSuccessResponse(exchange, "user successfully unblocked", null);
 
                     } else {
-                        internalServerError(exchange);
+                        sendErrorResponse(exchange, "you have not blocked this person", NOT_FOUND);
                     }
-                });
+
+                }
             }
         }
     }
@@ -378,7 +372,7 @@ public class ServerRequestHandler {
     }
 
     @APIEndpoint(endpoint = API.SET_PROFILE)
-    private static void setProfile(HttpExchange exchange) {
+    private static void setProfilePicture(HttpExchange exchange) {
         setImage(exchange, "Profile", requestActionHandler::setProfile);
     }
 
@@ -433,35 +427,83 @@ public class ServerRequestHandler {
         if(validateMethod("GET", exchange)) {
             Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
             String username = query.get(type);
-            if(!validateEssentialKeys(query, type)) {
-                badRequest(exchange);
-            } else if (type.equals(Users.COL_USERNAME)){
-                sendSuccessResponse(
-                        exchange,
-                        "duplicate username",
-                        databaseController.usernameExists(username));
+            if(validateEssentialKeys(exchange, query, type)) {
+                if (type.equals(Users.COL_USERNAME)) {
+                    sendSuccessResponse(
+                            exchange,
+                            "duplicate username",
+                            databaseController.usernameExists(username));
 
-            } else if (type.equals(Users.COL_EMAIL)) {
-                sendSuccessResponse(
-                        exchange,
-                        "duplicate email",
-                        databaseController.emailExists(username));
+                } else if (type.equals(Users.COL_EMAIL)) {
+                    sendSuccessResponse(
+                            exchange,
+                            "duplicate email",
+                            databaseController.emailExists(username));
+                }
             }
         }
     }
 
     @APIEndpoint(endpoint = API.GET_PROFILE)
-    private static void getUserProfile() {
+    private static void getUserProfile(HttpExchange exchange) {
+        if(validateMethod("GET", exchange)) {
+            Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
+            if(validateEssentialKeys(exchange, query, Users.COL_USERID)) {
+                int userId = Integer.parseInt(query.get(Users.COL_USERID));
+                User user = dataController.getUser(userId);
+
+                if(user != null) {
+                    serializableResponse(
+                            exchange,
+                    "user found successfully",
+                            user,
+                            SUCCESS,
+                    true);
+                }
+
+
+            }
+        }
+    }
+
+    @APIEndpoint(endpoint = API.GET_FOLLOWERS_COUNT)
+    private static void getFollowersCount(HttpExchange exchange) {
+        int count = getCountHelper(exchange, "follower");
+        if(count >= 0) sendSuccessResponse(exchange, "followers count retrieved successfully", count);
+    }
+
+
+    @APIEndpoint(endpoint = API.GET_FOLLOWERS)
+    private static void getFollowers(HttpExchange exchange) {
 
     }
 
-    //SET API ENDPOINT
-    private static void getFollowers() {
+    @APIEndpoint(endpoint = API.GET_FOLLOWINGS_COUNT)
+    private static void getFollowingsCount(HttpExchange exchange) {
+        int count = getCountHelper(exchange, "following");
+        if(count >= 0) sendSuccessResponse(exchange, "followers count retrieved successfully", count);
+    }
+
+
+    @APIEndpoint(endpoint = API.GET_FOLLOWINGS)
+    private static void getFollowings(HttpExchange exchange) {
 
     }
 
-    //SET API ENDPOINT
-    private static void getFollowings() {
 
+    private static int getCountHelper(HttpExchange exchange, String type) {
+        if(validateMethod("GET", exchange)) {
+            Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
+            if(validateEssentialKeys(exchange, query, Users.COL_USERID)) {
+                int userId = Integer.parseInt(query.get(Users.COL_USERID));
+
+                return switch (type) {
+                    case "following" -> dataController.getFollowingsCount(userId);
+                    case "follower" -> dataController.getFollowersCount(userId);
+                    default -> -1;
+                };
+            }
+        }
+        return -2;
     }
 }

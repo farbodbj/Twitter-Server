@@ -111,6 +111,7 @@ public class DBUtils {
             user.setDisplayName((String) tweetHashMap.get(Users.COL_DISPLAY_NAME));
             user.setUserId((int) tweetHashMap.get(Users.COL_USERID));
 
+            tweet.setTweetId((long) tweetHashMap.get(Tweets.COL_TWEET_ID));
             tweet.setText((String) tweetHashMap.get(Tweets.COL_TEXT));
             tweet.setFavCount((int) tweetHashMap.get(Tweets.COL_FAV_COUNT));
             tweet.setRetweetCount((int) tweetHashMap.get(Tweets.COL_RETWEET_COUNT));
@@ -140,14 +141,17 @@ public class DBUtils {
             originalUser.setUsername((String) retweetMap.get(Users.COL_USERNAME));
 
             originalTweet.setSender(originalUser);
+            originalTweet.setTweetId((long) retweetMap.get(Tweets.COL_TWEET_ID));
             originalTweet.setText((String) retweetMap.get(Tweets.COL_TEXT));
             originalTweet.setFavCount((int) retweetMap.get(Tweets.COL_FAV_COUNT));
             originalTweet.setRetweetCount((int) retweetMap.get(Tweets.COL_RETWEET_COUNT));
             originalTweet.setMentionCount((int) retweetMap.get(Tweets.COL_MENTION_COUNT));
             originalTweet.setSentAt(((LocalDateTime) retweetMap.get(Tweets.COL_SENT_AT)));
 
+            retweet.setSentAt((LocalDateTime) retweetMap.get(Tweets.COL_SENT_AT));
             retweet.setRetweeted(originalTweet);
             retweet.setSender(retweeter);
+
 
             retweetList.add(retweet);
         }
@@ -163,9 +167,7 @@ public class DBUtils {
         return timelineHandler(mentions, Mention::new, Tweets.MENTIONER_ALIAS);
     }
 
-    public static <T extends Tweet> List<T> timelineHandler(List<HashMap<String, Object>> rows,
-                                                            BiFunction<User, Tweet, T> tweetConstructor,
-                                                            String senderPrefix) {
+    public static <T extends Tweet> List<T> timelineHandler(List<HashMap<String, Object>> rows, BiFunction<User, Tweet, T> tweetConstructor, String senderPrefix) {
         List<T> tweets = new ArrayList<>();
 
         for (HashMap<String, Object> row : rows) {
@@ -183,6 +185,7 @@ public class DBUtils {
             sender.setUsername((String) row.get(senderPrefix + "_username"));
 
             originalTweet.setSender(originalUser);
+            originalTweet.setTweetId((long) row.get("original_tweet_id"));
             originalTweet.setText((String) row.get("original_text"));
             originalTweet.setFavCount((int) row.get("original_fav_count"));
             originalTweet.setRetweetCount((int) row.get("original_retweet_count"));
@@ -190,6 +193,7 @@ public class DBUtils {
             originalTweet.setSentAt(((LocalDateTime) row.get("original_sent_at")));
 
             tweet.setSender(sender);
+            tweet.setTweetId((long) row.get(senderPrefix + "_tweet_id"));
             tweet.setText((String) row.get(senderPrefix + "_text"));
             tweet.setFavCount((int) row.get(senderPrefix + "_fav_count"));
             tweet.setRetweetCount((int) row.get(senderPrefix + "_retweet_count"));

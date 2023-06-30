@@ -31,14 +31,19 @@ public class UserActionsController {
     }
 
     public User signIn(String username, String passwordHash) {
-        return DBConnection.getUser(username, passwordHash);
+        User user = DBConnection.getUser(username, passwordHash);
+        if(user != null && user.getUserId() != 0)
+            user.setProfilePic(StorageManager.loadProfilePhoto(user.getUserId()));
+        return user;
     }
 
     public boolean follow(int followerId,int followedId) {
-        return DBConnection.addFollower(followerId,followedId);}
+        return DBConnection.addFollower(followerId,followedId);
+    }
 
     public boolean unfollow(int usernameFollower,int usernameFollowed) {
-        return DBConnection.removeFollowing(usernameFollower,usernameFollowed);}
+        return DBConnection.removeFollowing(usernameFollower,usernameFollowed);
+    }
 
     public boolean tweet(Tweet tweet) {
         tweet.setTweetId(ID_GEN.nextId());
@@ -58,7 +63,8 @@ public class UserActionsController {
         } catch (AttachmentError e) {
             return false;
         }
-        return DBConnection.addHashtags(TweetAnalyzer.getHashtags(quote)) && DBConnection.addQuote(quote);
+        DBConnection.addHashtags(TweetAnalyzer.getHashtags(quote));
+        return DBConnection.addQuote(quote);
     }
 
     public boolean mention(Mention mention) {
@@ -68,7 +74,8 @@ public class UserActionsController {
         } catch (AttachmentError e) {
             return false;
         }
-        return DBConnection.addHashtags(TweetAnalyzer.getHashtags(mention)) && DBConnection.addMention(mention);
+        DBConnection.addHashtags(TweetAnalyzer.getHashtags(mention));
+        return DBConnection.addMention(mention);
     }
 
     public boolean retweet(Retweet retweet) {
@@ -76,18 +83,19 @@ public class UserActionsController {
         DBConnection.addHashtags(TweetAnalyzer.getHashtags(retweet.getRetweeted()));
         return DBConnection.addRetweet(retweet);
     }
-    public boolean like(int userId , int tweetId ) {
+    public boolean like(int userId , long tweetId ) {
         return DBConnection.addLike(userId,tweetId);
     }
 
-    public boolean unlike(int userId , int tweetId ) {
+    public boolean unlike(int userId , long tweetId ) {
         return DBConnection.removeLike(userId,tweetId);
     }
 
     public boolean block(int blockerId, int blockedId) {
-        return
-                DBConnection.addBlocked(blockerId, blockedId)
-                && (DBConnection.removeFollower(blockedId, blockerId) || DBConnection.removeFollowing(blockedId, blockerId));
+        DBConnection.removeFollower(blockedId, blockerId);
+        DBConnection.removeFollowing(blockedId, blockerId);
+        return DBConnection.addBlocked(blockerId, blockedId);
+
     }
 
     public boolean unblock(int blockerId, int blockedId) {
@@ -109,7 +117,7 @@ public class UserActionsController {
 
     public boolean setHeader(int userId, Image newHeader) {
         try {
-            StorageManager.saveHeader(userId, newHeader);
+            StorageManager.saveHeaderPhoto(userId, newHeader);
         } catch (AttachmentError e) {
             return false;
         }

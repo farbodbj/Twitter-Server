@@ -9,13 +9,12 @@ import java.sql.*;
 import java.util.LinkedList;
 import java.util.List;
 
-import static com.twitter.common.Utils.SafeCall.safe;
 
 public class Followers extends Table {
     public final static String TABLE_NAME = "Followers";
     public final static String COL_FOLLOWED = "followed";
     public final static String COL_FOLLOWER = "follower";
-    //private final static Connection conn = DatabaseController.getConnection();
+
     @Override
     public void createTable() throws SQLException {
         queryRunner.execute(conn,
@@ -29,7 +28,7 @@ public class Followers extends Table {
 
     public boolean insert(int followerId,int followedId) {
         try {
-            int affectedRows = queryRunner.update(
+            int affectedRows = queryRunner.update(conn,
             "INSERT INTO " +TABLE_NAME+ "(" + COL_FOLLOWED + "," + COL_FOLLOWER +")" + "VALUES (?,?)",
                 followedId,
                 followerId);
@@ -43,7 +42,7 @@ public class Followers extends Table {
 
     public boolean delete(int followerId, int followedId) {
         try {
-            int affectedRows = queryRunner.update(
+            int affectedRows = queryRunner.update(conn,
                     "DELETE FROM " +TABLE_NAME+ " WHERE " + COL_FOLLOWED + "= (?) AND " + COL_FOLLOWER + "= (?)",
                     followedId,
                     followerId);
@@ -64,6 +63,35 @@ public class Followers extends Table {
         String sqlQuery = "SELECT "+COL_FOLLOWED+" FROM " + TABLE_NAME + " WHERE " + COL_FOLLOWER + "= (?)";
         return selectHelper(sqlQuery, userID);
     }
+
+
+    public int selectFollowersCount(int userId) {
+        return selectCount(COL_FOLLOWER, userId);
+    }
+
+    public int selectFollowingsCount(int userId) {
+        return selectCount(COL_FOLLOWED, userId);
+    }
+
+
+    public int selectCount(String columnName, int userId) {
+        try(PreparedStatement pStmt = conn.prepareStatement("SELECT COUNT(*) FROM " + TABLE_NAME + " WHERE " + columnName + " = ?")) {
+            pStmt.setInt(1, userId);
+
+            ResultSet resultSet = pStmt.executeQuery();
+            if (resultSet.next()) {
+                int count = resultSet.getInt(1);
+                resultSet.close();
+                return count;
+            }
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+
+        return -1;
+    }
+
 
 
     private List<User> selectHelper(String sqlQuery, int userID) {

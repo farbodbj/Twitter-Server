@@ -112,14 +112,14 @@ public class DatabaseController {
         return tweets.insert(retweet) && tweets.incrementRetweets(retweet);
     }
 
-    public boolean addLike(int userId , int tweetId) {
+    public boolean addLike(int userId , long tweetId) {
         tweets.incrementLikes(tweetId);
-        return likes.insert(userId,tweetId);
+        return likes.insert(tweetId, userId);
     }
 
-    public boolean removeLike(int userId , int tweetId) {
+    public boolean removeLike(int userId , long tweetId) {
         tweets.reduceLikes(tweetId);
-        return likes.remove(userId,tweetId);
+        return likes.remove(tweetId, userId);
     }
 
     public boolean addHashtags(String[] hashtagArray) {
@@ -144,7 +144,11 @@ public class DatabaseController {
         timeline.addAll(tweets.selectTimelineQuotes(userId, MAX_COUNT));
         timeline.addAll(tweets.selectTimelineMentions(userId, MAX_COUNT));
 
-        timeline.sort(Comparator.comparing(Tweet::getSentAt));
+        try {
+            timeline.sort(Comparator.comparing(Tweet::getSentAt));
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
 
         return timeline;
     }
@@ -183,6 +187,10 @@ public class DatabaseController {
     {
         return followers.selectFollowings(userId);
     }
+
+    public int getFollowersCount(int userId) {return followers.selectFollowersCount(userId);}
+
+    public int getFollowingsCount(int userId) {return followers.selectFollowingsCount(userId);}
 
 
 }

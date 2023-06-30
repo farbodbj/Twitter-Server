@@ -22,10 +22,12 @@ import static com.twitter.common.Utils.SafeCall.safe;
 public class ServerHttpUtils {
     private final static Gson gson = GsonUtils.getInstance();
 
-    public static boolean validateEssentialKeys(Map<String, String> header, String... keys) {
+    public static boolean validateEssentialKeys(HttpExchange exchange, Map<String, String> header, String... keys) {
         for (String key: keys) {
-            if(!header.containsKey(key) || header.get(key).isBlank())
+            if(!header.containsKey(key) || header.get(key).isBlank()){
+                badRequest(exchange);
                 return false;
+            }
         }
         return true;
     }

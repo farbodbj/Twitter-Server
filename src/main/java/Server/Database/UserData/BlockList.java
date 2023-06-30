@@ -27,7 +27,7 @@ public class BlockList extends Table
     public boolean insert(int blockerId,int blockedId) {
         try {
             int insertCount =
-                    queryRunner.update(
+                    queryRunner.update(conn,
                         "INSERT INTO " +TABLE_NAME+
                             "(" + COL_BLOCKED + "," + COL_BLOCKER +")"
                                 + "VALUES (?,?)",

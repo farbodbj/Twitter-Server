@@ -24,10 +24,10 @@ public class Likes extends Table
                 + "UNIQUE  KEY like_id ("+COL_LIKER_ID+", "+COL_TWEET_ID+"))");
     }
 
-    public boolean insert(int tweetId ,int likerId) {
+    public boolean insert(long tweetId ,int likerId) {
         try {
             int insertCount =
-                    queryRunner.update(
+                    queryRunner.update(conn,
                         "INSERT INTO " + TABLE_NAME +
                             "(" + COL_TWEET_ID + "," + COL_LIKER_ID + ")"+
                             "VALUES (?,?)",
@@ -43,7 +43,7 @@ public class Likes extends Table
 
 
     }
-    public boolean remove(int tweetId ,int likerId) {
+    public boolean remove(long tweetId ,int likerId) {
         try {
             int rowsAffected = queryRunner.update(conn,
                 "DELETE FROM " + TABLE_NAME + " WHERE " + COL_TWEET_ID + "= ? AND " + COL_LIKER_ID + "= ?",

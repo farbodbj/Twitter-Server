@@ -8,12 +8,11 @@ import com.twitter.common.Models.Messages.Textuals.Mention;
 import com.twitter.common.Models.Messages.Textuals.Quote;
 import com.twitter.common.Models.Messages.Textuals.Retweet;
 import com.twitter.common.Models.Messages.Textuals.Tweet;
-
 import java.sql.*;
 import java.util.List;
 
 
-public class Tweets extends Table implements Insertable<Tweet> { //TODO: this class needs further investigation for improving code quality
+public class Tweets extends Table implements Insertable<Tweet> {
     public final static String TABLE_NAME = "Tweets";
     public final static String COL_TWEET_ID = "tweetId";
     public final static String COL_SENDER_ID = "senderId";
@@ -81,9 +80,9 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
     public boolean insert(Retweet retweet) {
         return insertWithParams(
                 retweet,
-                retweet.getRetweeted().getFavCount(),
-                retweet.getRetweeted().getRetweetCount(),
-                retweet.getRetweeted().getMentionCount(),
+        0,
+    0,
+    0,
                 retweet.getRetweeted().getTweetId(),
                 TweetType.Retweet);
     }
@@ -124,12 +123,12 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
         }
     }
 
-    private int findParent(int retweetId)
+    private int findParent(long retweetId)
     {
         try (PreparedStatement pStmt = conn.prepareStatement("SELECT " + COL_PARENT_TWEET + " FROM " + TABLE_NAME + " WHERE "+ COL_TWEET_ID + "= (?)"))
         {
             int parentId;
-            pStmt.setInt(1,retweetId);
+            pStmt.setLong(1,retweetId);
             ResultSet rs = pStmt.executeQuery();
             if(rs.next())
             {
@@ -142,12 +141,12 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
         }
         return 0;
     }
-    private String findTweetType(int tweetId)
+    private String findTweetType(long tweetId)
     {
         try (PreparedStatement pStmt = conn.prepareStatement("SELECT " + COL_TWEET_TYPE + " FROM " + TABLE_NAME + " WHERE "+ COL_TWEET_ID + "= (?)"))
         {
             String type ;
-            pStmt.setInt(1,tweetId);
+            pStmt.setLong(1,tweetId);
             ResultSet rs = pStmt.executeQuery();
             if(rs.next())
             {
@@ -161,7 +160,7 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
         return null;
     }
 
-    public synchronized void reduceLikes(int tweetId) {
+    public synchronized void reduceLikes(long tweetId) {
         if (findTweetType(tweetId).equals(TweetType.Retweet.name())) {
             updateCounter(findParent(tweetId), COL_FAV_COUNT, -1);
         } else {
@@ -169,7 +168,7 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
         }
     }
 
-    public synchronized void incrementLikes(int tweetId) {
+    public synchronized void incrementLikes(long tweetId) {
         if (findTweetType(tweetId).equals(TweetType.Retweet.name())) {
             updateCounter(findParent(tweetId), COL_RETWEET_COUNT, 1);
         } else {
@@ -182,13 +181,13 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
     }
 
     public synchronized boolean incrementMentions(Mention mention) {
-        return updateCounter(mention.getTweetId(), COL_MENTION_COUNT,1);
+        return updateCounter(mention.getMentionedTo().getTweetId(), COL_MENTION_COUNT,1);
     }
 
 
     private boolean updateCounter(long tweetId, String columnName, int value) {
         try {
-            int affectedRow = queryRunner.update(
+            int affectedRow = queryRunner.update(conn,
             "UPDATE " + TABLE_NAME + " SET " +
                     columnName + " = " + columnName + " + (?)  WHERE " + COL_TWEET_ID + " = (?)",
                     value,
@@ -205,6 +204,7 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
                     + Users.TABLE_NAME + "." + Users.COL_USERID + ", "
                     + Users.TABLE_NAME + "." + Users.COL_DISPLAY_NAME + ", "
                     + Users.TABLE_NAME + "." + Users.COL_USERNAME + ", "
+                    + TABLE_NAME + "." + COL_TWEET_ID + ", "
                     + TABLE_NAME + "." + COL_TEXT + ", "
                     + TABLE_NAME + "." + COL_FAV_COUNT + ", "
                     + TABLE_NAME + "." + COL_RETWEET_COUNT + ", "
@@ -245,6 +245,8 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
                 + USERS_TABLE_ALIAS_OS + "." + Users.COL_DISPLAY_NAME + ", "
                 + USERS_TABLE_ALIAS_OS + "." + Users.COL_USERNAME + ", "
                 + TWEETS_TABLE_ALIAS_RT + "." + COL_SENDER_ID + ", "
+                + TWEETS_TABLE_ALIAS_RT + "." + COL_SENT_AT + ","
+                + TWEETS_TABLE_ALIAS_OG + "." + COL_TWEET_ID + ", "
                 + TWEETS_TABLE_ALIAS_OG + "." + COL_TEXT + ", "
                 + TWEETS_TABLE_ALIAS_OG + "." + COL_FAV_COUNT + ", "
                 + TWEETS_TABLE_ALIAS_OG + "." + COL_RETWEET_COUNT + ", "
@@ -260,7 +262,7 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
                 + " INNER JOIN " + Users.TABLE_NAME + " AS " + USERS_TABLE_ALIAS_OS + " ON "
                         + TWEETS_TABLE_ALIAS_OG+"."+COL_SENDER_ID +"="+ USERS_TABLE_ALIAS_OS+"."+Users.COL_USERID
                 + " WHERE " + Followers.TABLE_NAME+"."+Followers.COL_FOLLOWER +"= (?)" +
-                        " ORDER BY " + COL_SENT_AT + " LIMIT " + MAX_COUNT)) {
+                        " ORDER BY " + TWEETS_TABLE_ALIAS_RT + "." + COL_SENT_AT + " LIMIT " + MAX_COUNT)) {
 
             pStmt.setInt(1, userId);
 
@@ -336,11 +338,13 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
                 "original_sender" + "." + Users.COL_USERID + " AS " + person + "_user_id, " +
                 "original_sender" + "." + Users.COL_DISPLAY_NAME + " AS " + person + "_display_name, " +
                 "original_sender" + "." + Users.COL_USERNAME + " AS " + person + "_username, " +
+                "original" + "." + COL_TWEET_ID + " AS original_tweet_id, " +
                 "original" + "." + COL_TEXT + " AS original_text, " +
                 "original" + "." + COL_FAV_COUNT + " AS original_fav_count, " +
                 "original" + "." + COL_RETWEET_COUNT + " AS original_retweet_count, " +
                 "original" + "." + COL_MENTION_COUNT + " AS original_mention_count, " +
                 "original" + "." + COL_SENT_AT + " AS original_sent_at, " +
+                tweets_alias_secondary + "." + COL_TWEET_ID + " AS " + person + "_tweet_id, " +
                 tweets_alias_secondary + "." + COL_TEXT + " AS " + person + "_text, " +
                 tweets_alias_secondary + "." + COL_FAV_COUNT + " AS " + person + "_fav_count, " +
                 tweets_alias_secondary + "." + COL_RETWEET_COUNT + " AS " + person + "_retweet_count, " +
@@ -352,7 +356,7 @@ public class Tweets extends Table implements Insertable<Tweet> { //TODO: this cl
                 + 	" INNER JOIN " + Followers.TABLE_NAME +" on "
                 + Followers.TABLE_NAME+"."+Followers.COL_FOLLOWED +"="+ tweets_alias_secondary+"."+COL_SENDER_ID
                 + 	" inner JOIN " + Tweets.TABLE_NAME + " as " + "original" + " on "
-                + tweets_alias_secondary+"."+COL_PARENT_TWEET +"="+ "original" +"."+COL_TWEET_ID +" and "+ tweets_alias_secondary+"."+COL_TWEET_TYPE +"= 'Mention'"
+                + tweets_alias_secondary+"."+COL_PARENT_TWEET +"="+ "original" +"."+COL_TWEET_ID +" and "+ tweets_alias_secondary+"."+COL_TWEET_TYPE +"=" + "'"+type.name()+"'"
                 + 	" INNER JOIN " + Users.TABLE_NAME + " as " + users_alias_original +" on "
                 + "original" +"."+COL_SENDER_ID +"="+ users_alias_original+"."+Users.COL_USERID
                 + " WHERE " + Followers.TABLE_NAME+"."+Followers.COL_FOLLOWER +"= (?)"
