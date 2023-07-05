@@ -59,18 +59,36 @@ public class DBUtils {
     }
 
     public static User resultSetToUser(ResultSet rs) throws SQLException {
-        //  also use setters for setting the fields not constructor
         User user = new User();
-        user.setUserId(rs.getInt(Users.COL_USERID));
-        user.setDisplayName(rs.getString(Users.COL_DISPLAY_NAME));
-        user.setUsername(rs.getString(Users.COL_USERNAME));
-        user.setEmail(rs.getString(Users.COL_EMAIL));
-        user.setDateOfBirth(rs.getDate(Users.COL_DATE_OF_BIRTH));
-        user.setAccountMade(rs.getDate(Users.COL_ACCOUNT_MADE));
-        user.setBio(rs.getString(Users.COL_BIO));
-        user.setLocation(rs.getString(Users.COL_LOCATION));
-
+        try {
+            user.setUserId(rs.getInt(Users.COL_USERID));
+            user.setDisplayName(rs.getString(Users.COL_DISPLAY_NAME));
+            user.setUsername(rs.getString(Users.COL_USERNAME));
+            user.setEmail(rs.getString(Users.COL_EMAIL));
+            user.setDateOfBirth(rs.getDate(Users.COL_DATE_OF_BIRTH));
+            user.setAccountMade(rs.getDate(Users.COL_ACCOUNT_MADE));
+            user.setBio(rs.getString(Users.COL_BIO));
+            user.setLocation(rs.getString(Users.COL_LOCATION));
+        } catch (SQLException ignore) {
+            //column not found should be ignored since not all columns are needed
+        }
         return user;
+    }
+
+    public static List<User> resultSetToUserList(ResultSet resultSet) {
+        List<User> userList = new ArrayList<>();
+        try {
+            while (resultSet.next()) {
+                User user = resultSetToUser(resultSet);
+                userList.add(user);
+            }
+
+            return userList;
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return null;
     }
 
     public static Chat resultSetToChat(ResultSet rs) throws SQLException {

@@ -64,11 +64,10 @@ public class ServerHttpUtils {
         return body;
     }
 
-    public static Object getValueFromHeader(HttpExchange exchange, String key) {
-        return exchange.getRequestHeaders().get(key);
+
+    public static String getValueFromHeader(HttpExchange exchange, String key) {
+        return exchange.getRequestHeaders().getFirst(key);
     }
-
-
 
 
     public static <T> T parse(HttpExchange exchange, Class<T> cls) {

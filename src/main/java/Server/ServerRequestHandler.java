@@ -11,6 +11,7 @@ import Server.Utils.Http.ServerHttpUtils;
 import com.twitter.common.Annotations.APIEndpoint;
 import com.twitter.common.Models.Messages.Visuals.Image;
 import com.twitter.common.Models.Timeline;
+import com.twitter.common.Models.UserGraph;
 import com.twitter.common.Utils.JwtUtils;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
@@ -26,10 +27,10 @@ import com.twitter.common.Models.User;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static Server.Utils.Http.ServerHttpUtils.*;
 import static com.twitter.common.API.StatusCode.*;
@@ -45,7 +46,7 @@ public class ServerRequestHandler {
         //TODO: try to move db initializations out of here!
         safe(()->{
             //zero indicates that http server will use default amount for backlog (how many users to handle concurrently)
-            httpServer = HttpServer.create(new InetSocketAddress("192.168.1.141",API.PORT), 0);
+            httpServer = HttpServer.create(new InetSocketAddress(API.SERVER_IP,API.PORT), 0);
             httpServer.setExecutor(Executors.newFixedThreadPool(8));
             databaseController.initializeDB();
             System.out.println("database initialized...");
@@ -352,44 +353,35 @@ public class ServerRequestHandler {
         }
     }
 
-    private static void setImage(HttpExchange exchange, String imageType, BiFunction<Integer, Image, Boolean> imageSetter) {
-        if(validateMethod("POST", exchange)) {
-            Image newImage = validateSerializedBody(exchange, Image.class);
-            Integer userId = (Integer) getValueFromHeader(exchange, Users.COL_USERID);
-            if (newImage == null || userId == null) {
-                badRequest(exchange);
-            } else if (JwtCheck(exchange, userId)) {
-                if (imageSetter.apply(userId, newImage)) {
-                    sendSuccessResponse(
-                            exchange,
-                            imageType + " changed successfully",
-                            null);
-                } else {
-                    internalServerError(exchange);
-                }
-            }
-        }
-    }
-
-    @APIEndpoint(endpoint = API.SET_PROFILE)
+    @APIEndpoint(endpoint = API.SET_PROFILE_PIC)
     private static void setProfilePicture(HttpExchange exchange) {
-        setImage(exchange, "Profile", requestActionHandler::setProfile);
+        setUserVisualAttribute(exchange, "Profile", requestActionHandler::setProfile);
     }
 
     @APIEndpoint(endpoint = API.SET_HEADER)
     private static void setHeader(HttpExchange exchange) {
-        setImage(exchange, "Header", requestActionHandler::setHeader);
+        setUserVisualAttribute(exchange, "Header", requestActionHandler::setHeader);
     }
 
 
+    @APIEndpoint(endpoint = API.SET_DISPLAY_NAME)
+    private static void setDisplayName(HttpExchange exchange) {
+        setUserTextualAttribute(exchange, Users.COL_DISPLAY_NAME, requestActionHandler::setDisplayName);
+    }
+
     @APIEndpoint(endpoint = API.SET_BIO)
     private static void setBio(HttpExchange exchange) {
+        setUserTextualAttribute(exchange, Users.COL_BIO, requestActionHandler::setBio);
+    }
 
+    @APIEndpoint(endpoint = API.SET_LOCATION)
+    private static void setLocation(HttpExchange exchange) {
+        setUserTextualAttribute(exchange, Users.COL_LOCATION, requestActionHandler::setLocation);
     }
 
     @APIEndpoint(endpoint = API.SET_USERNAME)
     private static void setUsername(HttpExchange exchange) {
-
+        //TODO: to be implemented
     }
 
     @APIEndpoint(endpoint = API.GET_TIMELINE)
@@ -460,8 +452,6 @@ public class ServerRequestHandler {
                             SUCCESS,
                     true);
                 }
-
-
             }
         }
     }
@@ -475,8 +465,9 @@ public class ServerRequestHandler {
 
     @APIEndpoint(endpoint = API.GET_FOLLOWERS)
     private static void getFollowers(HttpExchange exchange) {
-
+        userListHelper(exchange, "followers", dataController::getFollowers);
     }
+
 
     @APIEndpoint(endpoint = API.GET_FOLLOWINGS_COUNT)
     private static void getFollowingsCount(HttpExchange exchange) {
@@ -487,9 +478,30 @@ public class ServerRequestHandler {
 
     @APIEndpoint(endpoint = API.GET_FOLLOWINGS)
     private static void getFollowings(HttpExchange exchange) {
-
+        userListHelper(exchange, "followings", dataController::getFollowings);
     }
 
+    @APIEndpoint(endpoint = API.SEARCH_USERS)
+    private static void searchForUser(HttpExchange exchange) {
+        if(validateMethod("GET", exchange)) {
+            final String SEARCH_TERM_PARAM_NAME = "search_term";
+            Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
+
+            if(validateEssentialKeys(exchange, query, SEARCH_TERM_PARAM_NAME)) {
+                String searchTerm = query.get(SEARCH_TERM_PARAM_NAME);
+                List<User> searchResult = dataController.searchForUser(searchTerm);
+                if(searchResult != null)
+                    serializableResponse(
+                            exchange,
+                            "search done with " + searchResult.size() + "results.",
+                            new UserGraph(searchResult),
+                            SUCCESS,
+                            true);
+                else
+                    internalServerError(exchange);
+            }
+        }
+    }
 
     private static int getCountHelper(HttpExchange exchange, String type) {
         if(validateMethod("GET", exchange)) {
@@ -505,5 +517,66 @@ public class ServerRequestHandler {
             }
         }
         return -2;
+    }
+
+
+    private static void userListHelper(HttpExchange exchange, String listName, Function<Integer, List<User>> getListFunction) {
+        if (validateMethod("GET", exchange)) {
+            Map<String, String> query = queryToMap(exchange.getRequestURI().getQuery());
+            if (validateEssentialKeys(exchange, query, Users.COL_USERID)) {
+                int userId = Integer.parseInt(query.get(Users.COL_USERID));
+                if (JwtCheck(exchange, userId)) {
+                    List<User> userList = getListFunction.apply(userId);
+                    if (userList != null) {
+                        serializableResponse(
+                                exchange,
+                                listName + " list retrieved successfully",
+                                new UserGraph(userList),
+                                SUCCESS,
+                                true);
+                    } else {
+                        internalServerError(exchange);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void setUserVisualAttribute(HttpExchange exchange, String imageType, BiFunction<Integer, Image, Boolean> setter) {
+        if(validateMethod("POST", exchange)) {
+            Image newImage = validateSerializedBody(exchange, Image.class);
+            int userId = Integer.parseInt(getValueFromHeader(exchange, Users.COL_USERID));
+            if (newImage == null || userId == 0) {
+                badRequest(exchange);
+            } else if (JwtCheck(exchange, userId)) {
+                if (setter.apply(userId, newImage)) {
+                    sendSuccessResponse(
+                            exchange,
+                            imageType + " changed successfully",
+                            null);
+                } else {
+                    internalServerError(exchange);
+                }
+            }
+        }
+    }
+
+
+    private static void setUserTextualAttribute(HttpExchange exchange, String newAttributeName, BiFunction<Integer, String, Boolean> setter) {
+        if(validateMethod("POST", exchange)) {
+            int userId = Integer.parseInt(getValueFromHeader(exchange, Users.COL_USERID));
+            String newAttribValue = getValueFromHeader(exchange, newAttributeName);
+            if(userId == 0 || newAttribValue == null) {
+                badRequest(exchange);
+            }
+            if(setter.apply(userId, newAttribValue)) {
+                sendSuccessResponse(
+                        exchange,
+                        newAttributeName + " changed successfully!",
+                        null);
+            } else {
+                internalServerError(exchange);
+            }
+        }
     }
 }

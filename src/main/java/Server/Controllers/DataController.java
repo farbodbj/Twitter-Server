@@ -42,16 +42,22 @@ public class DataController //gets timeline and profile and etc.
 
     public int getFollowersCount(int userId) {return DBController.getFollowersCount(userId);}
 
-    public List<User> getFollowers(int userId)
-    {
+    public List<User> getFollowers(int userId) {
         return DBController.getFollowers(userId);
     }
 
     public int getFollowingsCount(int userId) {return DBController.getFollowingsCount(userId);}
 
-    public List<User> getFollowings(int userId)
-    {
+    public List<User> getFollowings(int userId) {
         return DBController.getFollowings(userId);
+    }
+
+    public List<User> searchForUser(String searchTerm) {
+        List<User> users =  DBController.searchUsers(searchTerm);
+        for (User user: users) {
+            user.setProfilePic(StorageManager.loadProfilePhoto(user.getUserId()));
+        }
+        return users;
     }
 
     public Timeline getTimeline(int userId, int MAX_COUNT) {
@@ -59,6 +65,7 @@ public class DataController //gets timeline and profile and etc.
         timeline.setForUser(userId);
         timeline.addAll(DBController.generateTimeline(userId, MAX_COUNT));
         loadTimelineAttachments(timeline);
+        loadTimelineProfilePhotos(timeline);
         return timeline;
     }
 
@@ -73,22 +80,49 @@ public class DataController //gets timeline and profile and etc.
         }
     }
 
-    private void loadTimelineProfilePhotos(Timeline timeline) { //TODO: complete this method
-
+    private void loadTimelineProfilePhotos(Timeline timeline) {
+        //TODO: complete this method
         for(Tweet tweet: timeline.getTimelineTweets()) {
+            tweet
+                    .getSender()
+                    .setProfilePic(
+                            StorageManager.loadProfilePhoto(tweet.getSender().getUserId()));
+
+
              if (tweet instanceof Mention) {
-                StorageManager.loadProfilePhoto(((Mention) tweet).getMentionedTo().getSender().getUserId());
+                 ((Mention) tweet)
+                         .getMentionedTo()
+                         .getSender()
+                         .setProfilePic(
+                                 StorageManager.loadProfilePhoto(
+                                                 ((Mention) tweet)
+                                                         .getMentionedTo()
+                                                         .getSender()
+                                                         .getUserId()));
 
             } else if (tweet instanceof Quote) {
+                 ((Quote) tweet)
+                         .getQuoted()
+                         .getSender()
+                         .setProfilePic(
+                                 StorageManager.loadProfilePhoto(
+                                         ((Quote) tweet)
+                                                 .getQuoted()
+                                                 .getSender()
+                                                 .getUserId()));
 
             } else if (tweet instanceof Retweet) {
+                    ((Retweet) tweet)
+                            .getRetweeted()
+                            .getSender()
+                            .setProfilePic(
+                                    StorageManager.loadProfilePhoto(
+                                            ((Retweet) tweet)
+                                                    .getRetweeted()
+                                                    .getSender()
+                                                    .getUserId()));
 
-            } else {
-
-             }
-
-
+            }
         }
-
     }
 }

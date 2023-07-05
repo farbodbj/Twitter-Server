@@ -9,6 +9,8 @@ import com.twitter.common.Models.Messages.Textuals.*;
 import com.twitter.common.Models.Messages.Visuals.Image;
 import com.twitter.common.Models.User;
 
+import java.util.List;
+
 
 //Singleton class
 public class UserActionsController {
@@ -102,6 +104,7 @@ public class UserActionsController {
         return DBConnection.removeBlocked(blockerId, blockedId);
     }
 
+
     public void sendMassage(Direct directMessage) {
         DBConnection.sendMassage(directMessage);
     }
@@ -124,6 +127,15 @@ public class UserActionsController {
         return true;
     }
 
+    public boolean setDisplayName(int userId, String newDisplayName) {
+        return DBConnection.setDisplayName(userId, newDisplayName);
+    }
 
+    public boolean setBio(int userId, String newBio) {
+        return DBConnection.setBio(userId, newBio);
+    }
 
+    public boolean setLocation(int userId, String newLocation) {
+        return DBConnection.setLocation(userId, newLocation);
+    }
 }

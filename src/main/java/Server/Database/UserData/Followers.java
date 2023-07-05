@@ -6,7 +6,7 @@ import Server.Utils.DBUtils;
 import com.twitter.common.Models.User;
 
 import java.sql.*;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -55,15 +55,14 @@ public class Followers extends Table {
     }
 
     public List<User> selectFollowers(int userID) {
-        String sqlQuery = "SELECT "+ COL_FOLLOWER + " FROM " + TABLE_NAME + " WHERE " + COL_FOLLOWED + "= (?)";
+        String sqlQuery = generateUserSelectQuery(userID, COL_FOLLOWED, COL_FOLLOWER);
         return selectHelper(sqlQuery, userID);
     }
 
     public List<User> selectFollowings(int userID) {
-        String sqlQuery = "SELECT "+COL_FOLLOWED+" FROM " + TABLE_NAME + " WHERE " + COL_FOLLOWER + "= (?)";
+        String sqlQuery = generateUserSelectQuery(userID, COL_FOLLOWER, COL_FOLLOWED);
         return selectHelper(sqlQuery, userID);
     }
-
 
     public int selectFollowersCount(int userId) {
         return selectCount(COL_FOLLOWER, userId);
@@ -92,13 +91,11 @@ public class Followers extends Table {
         return -1;
     }
 
-
-
     private List<User> selectHelper(String sqlQuery, int userID) {
         try(PreparedStatement selector = conn.prepareStatement(sqlQuery)) {
             selector.setInt(1,userID);
             ResultSet rs = selector.executeQuery();
-            List<User> users = new LinkedList<>();
+            List<User> users = new ArrayList<>();
 
             while (rs.next()) {
                 users.add(DBUtils.resultSetToUser(rs));
@@ -109,5 +106,17 @@ public class Followers extends Table {
             System.out.println(e.getSQLState());
         }
         return null;
+    }
+
+    private String generateUserSelectQuery(int userID, String targetColumn, String conditionColumn) {
+        return "SELECT "
+                + Users.TABLE_NAME + "." + Users.COL_USERID + ", "
+                + Users.TABLE_NAME + "." + Users.COL_DISPLAY_NAME + ", "
+                + Users.TABLE_NAME + "." + Users.COL_USERNAME + ", "
+                + Users.TABLE_NAME + "." + Users.COL_BIO
+                + " FROM " + TABLE_NAME
+                + " JOIN " + Users.TABLE_NAME
+                + " ON " + targetColumn + "=" + Users.TABLE_NAME + "." + Users.COL_USERID
+                + " WHERE " + conditionColumn + "= (?)";
     }
 }

@@ -13,6 +13,7 @@ import java.util.List;
 
 
 public class Tweets extends Table implements Insertable<Tweet> {
+    public final static int FAV_STAR_MIN = 10;
     public final static String TABLE_NAME = "Tweets";
     public final static String COL_TWEET_ID = "tweetId";
     public final static String COL_SENDER_ID = "senderId";
@@ -194,7 +195,7 @@ public class Tweets extends Table implements Insertable<Tweet> {
                     tweetId);
             return affectedRow == 1;
         } catch (SQLException e) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
             return false;
         }
     }
@@ -225,7 +226,7 @@ public class Tweets extends Table implements Insertable<Tweet> {
             return DBUtils.timelineTweetsHandler(DBUtils.resultSetToList(resultSet));
 
         } catch (SQLException e ) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
         }
 
         return null;
@@ -270,7 +271,7 @@ public class Tweets extends Table implements Insertable<Tweet> {
             return DBUtils.timelineRetweetsHandler(DBUtils.resultSetToList(resultSet));
 
         } catch (SQLException e ) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
         }
 
         return null;
@@ -293,7 +294,7 @@ public class Tweets extends Table implements Insertable<Tweet> {
             return DBUtils.timelineQuoteHandler(DBUtils.resultSetToList(resultSet));
 
         } catch (SQLException e) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
         }
 
         return null;
@@ -316,11 +317,42 @@ public class Tweets extends Table implements Insertable<Tweet> {
             return DBUtils.timelineMentionHandler(DBUtils.resultSetToList(resultSet));
 
         } catch (SQLException e ) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
         }
 
         return null;
     }
+
+
+    public synchronized List<Tweet> selectTimelineFavStars() {
+        try(PreparedStatement pStmt = conn.prepareStatement(
+            "SELECT "
+                    + Users.TABLE_NAME + "." + Users.COL_USERID + ", "
+                    + Users.TABLE_NAME + "." + Users.COL_DISPLAY_NAME + ", "
+                    + Users.TABLE_NAME + "." + Users.COL_USERNAME + ", "
+                    + TABLE_NAME + "." + COL_TWEET_ID + ", "
+                    + TABLE_NAME + "." + COL_TEXT + ", "
+                    + TABLE_NAME + "." + COL_FAV_COUNT + ", "
+                    + TABLE_NAME + "." + COL_RETWEET_COUNT + ", "
+                    + TABLE_NAME + "." + COL_MENTION_COUNT + ", "
+                    + TABLE_NAME + "." + COL_SENT_AT +
+                    " FROM " + TABLE_NAME +
+                    " JOIN " + Users.TABLE_NAME + " ON " +
+                        TABLE_NAME + "." + COL_SENDER_ID + "=" + Users.TABLE_NAME + "." + Users.COL_USERID +
+                    " WHERE " +
+                        TABLE_NAME + "." + COL_TWEET_TYPE + "= 'Tweet' AND" + " + "+ TABLE_NAME + "." + COL_FAV_COUNT + ">=" + "(?)")) {
+
+            pStmt.setInt(1, FAV_STAR_MIN);
+            ResultSet resultSet =  pStmt.executeQuery();
+
+            return DBUtils.timelineTweetsHandler(DBUtils.resultSetToList(resultSet));
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return null;
+    }
+
 
 
     private String mentionQuoteHelper(

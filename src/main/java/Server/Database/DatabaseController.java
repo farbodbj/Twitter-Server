@@ -143,12 +143,10 @@ public class DatabaseController {
         timeline.addAll(tweets.selectTimelineRetweets(userId, MAX_COUNT));
         timeline.addAll(tweets.selectTimelineQuotes(userId, MAX_COUNT));
         timeline.addAll(tweets.selectTimelineMentions(userId, MAX_COUNT));
+        timeline.addAll(tweets.selectTimelineFavStars());
 
-        try {
-            timeline.sort(Comparator.comparing(Tweet::getSentAt));
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-        }
+        timeline.sort(Comparator.comparing(Tweet::getSentAt).reversed());
+        //TODO: delete possible duplicates
 
         return timeline;
     }
@@ -178,13 +176,15 @@ public class DatabaseController {
         return chats.selectChat(chat.getChatId());
     }
 
-    public List<User> getFollowers(int userId)
-    {
+    public List<User> searchUsers(String searchTerm) {
+        return users.searchUser(searchTerm);
+    }
+
+    public List<User> getFollowers(int userId) {
         return followers.selectFollowers(userId);
     }
 
-    public List<User> getFollowings(int userId)
-    {
+    public List<User> getFollowings(int userId) {
         return followers.selectFollowings(userId);
     }
 
@@ -192,5 +192,15 @@ public class DatabaseController {
 
     public int getFollowingsCount(int userId) {return followers.selectFollowingsCount(userId);}
 
+    public boolean setDisplayName(int userId, String newDisplayName) {
+        return users.updateColumn(userId, newDisplayName, Users.COL_DISPLAY_NAME);
+    }
 
+    public boolean setBio(int userId, String newBio) {
+        return users.updateColumn(userId, newBio, Users.COL_BIO);
+    }
+
+    public boolean setLocation(int userId, String newLocation) {
+        return users.updateColumn(userId, newLocation, Users.COL_LOCATION);
+    }
 }

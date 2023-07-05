@@ -7,6 +7,11 @@ import Server.Utils.DBUtils;
 import com.twitter.common.Models.User;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import static Server.Utils.DBUtils.resultSetToUser;
+import static Server.Utils.DBUtils.resultSetToUserList;
 
 public class Users extends Table implements Insertable<User> {
 
@@ -65,7 +70,7 @@ public class Users extends Table implements Insertable<User> {
 
             return insertCount == 1;
         } catch (SQLException e) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
             return false;
         }
     }
@@ -77,11 +82,11 @@ public class Users extends Table implements Insertable<User> {
             ResultSet  rs = pStmt.executeQuery();
 
             if(rs.next())
-                return DBUtils.resultSetToUser(rs);
+                return resultSetToUser(rs);
             return null;
 
         } catch (SQLException e) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
             return null;
         }
     }
@@ -95,13 +100,38 @@ public class Users extends Table implements Insertable<User> {
 
             ResultSet rs = pStmt.executeQuery();
             if(rs.next())
-                return DBUtils.resultSetToUser(rs);
+                return resultSetToUser(rs);
             return null;
 
         } catch (SQLException e) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
             return null;
         }
+    }
+
+    public synchronized List<User> searchUser(String searchTerm) {
+        try(PreparedStatement pStmt = conn.prepareStatement(
+            "SELECT " +
+                    COL_USERID + ", " +
+                    COL_DISPLAY_NAME + ", " +
+                    COL_USERNAME + ", " +
+                    COL_BIO +
+                " FROM " + TABLE_NAME +
+                " WHERE " + COL_DISPLAY_NAME + " LIKE CONCAT('%', ?, '%') OR " +
+                COL_USERNAME + " LIKE CONCAT('%', ?, '%')")) {
+
+            pStmt.setString(1, searchTerm);
+            pStmt.setString(2, searchTerm);
+
+            ResultSet resultSet = pStmt.executeQuery();
+
+            return resultSetToUserList(resultSet);
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+
+        return null;
     }
 
     public synchronized boolean exists(String columnName, String value) {
@@ -113,10 +143,24 @@ public class Users extends Table implements Insertable<User> {
                 }
             }
         } catch (SQLException e) {
-            System.out.println(e.getSQLState());
+            System.out.println(e.getMessage());
         }
 
         return false;
     }
 
+    public synchronized boolean updateColumn(int userId, String newValue, String column) {
+        try {
+            int updateCount = queryRunner.update(conn,
+                    "UPDATE " + TABLE_NAME + " SET " + column + "=(?) " +
+                            "WHERE " + COL_USERID + "=(?)",
+                    newValue,
+                    userId);
+
+            return updateCount == 1;
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return false;
+    }
 }
