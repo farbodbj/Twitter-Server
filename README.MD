@@ -49,17 +49,17 @@ In order to address many different neeeds in the project and also achieving soft
 
 &bull; As the main communication way between server and client, [**RSET API**](https://www.digitalocean.com/community/tutorials/restful-web-services-tutorial-java) was used. After the needed methods were identified, related actions were put in the well-defined hierarchy of the API which separated them according to their responsibilities.
 An ER schema of the implemented design is shown bellow:
-
+![ER schema] (https://github.com/farbodbj/Twitter-Server/blob/master/architecture.png)
 
 &bull; The main design in the server part was [**The Layered architecture**](https://www.oreilly.com/library/view/software-architecture-patterns/9781491971437/ch01.html) as it could best help encapsulate different components and separate the concerns of accessing data (both on disk and database) from concerns of request handling and controlling.
 
 &bull; Although [**MVVM design pattern**](https://www.techtarget.com/whatis/definition/Model-View-ViewModel) is mostly related to the client part, but in the whole project (server and client together) the so called Model components where kept in a module named Commons and where only used as data entities with no buissiness related logic in them.
 The UML schema for the commons module can be seen bellow:
-
+![Commons module UML] (https://github.com/farbodbj/Twitter-Server/blob/master/Commons.png)
 
 &bull; [**DAO**](https://www.digitalocean.com/community/tutorials/dao-design-pattern) design pattern was effectively applied in the database part to encapsulate the database access logic from other parts. each table in the database has a corresponding class which is the only class that can add, remove or modify the data in that table.
 The database schematic can be seen bellow:
-
+![database schema] (https://github.com/farbodbj/Twitter-Server/blob/master/database schema.png)
 
 ## Implementation details
 
