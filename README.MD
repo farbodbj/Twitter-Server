@@ -59,7 +59,7 @@ The UML schema for the commons module can be seen bellow:
 
 &bull; [**DAO**](https://www.digitalocean.com/community/tutorials/dao-design-pattern) design pattern was effectively applied in the database part to encapsulate the database access logic from other parts. each table in the database has a corresponding class which is the only class that can add, remove or modify the data in that table.
 The database schematic can be seen bellow:
-![database schema] (https://github.com/farbodbj/Twitter-Server/blob/master/'database schema.png')
+![database schema] (https://github.com/farbodbj/Twitter-Server/blob/master/database%20schema.png)
 
 ## Implementation details
 
